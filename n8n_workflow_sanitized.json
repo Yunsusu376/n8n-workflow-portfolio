@@ -1,0 +1,303 @@
+{
+  "name": "Aalto project_workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "5d3a2bc1-8c8d-4108-9fde-60da1532cf75",
+              "name": "meeting_notes",
+              "value": "<REDACTED_MEETING_NOTES>",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        208,
+        0
+      ],
+      "id": "afb55f5c-1229-4d19-bc5e-930b1e1cb9d2",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4.1-nano",
+          "mode": "list",
+          "cachedResultName": "GPT-4.1-NANO"
+        },
+        "responses": {
+          "values": [
+            {
+              "content": "=You are a professional finance/ESG communications assistant.\nUse only the provided inputs. Do not invent facts or numbers.\nAll numbers must come from the provided JSON. If missing, write “Not provided”.\n\nCreate 3 outputs. Keep a neutral professional tone.\n\nA) External LinkedIn Post\n- 60–120 words\n- No confidential details\n- Do NOT include raw KPI numbers; talk about progress + next steps only\n- End with a soft call-to-action\n\nB) Internal Brief\n- Key updates: max 5 bullets\n- Risks / open questions: 2 bullets\n- Next actions: 3 bullets (each starts with a verb)\n- You MAY reference variance insights using the JSON (e.g., “below plan”, “above cap”), but avoid adding new numbers.\n\nC) Partner Email Draft\n- Subject line + body\n- 120–180 words\n- Include 3 bullet highlights and 1 short paragraph on next steps\n- Ask for feedback on metric definitions / messaging if relevant\n\nInput (original notes):\n{{$node[\"Edit Fields\"].json.meeting_notes}}\n\nMetrics + checks (JSON):\n{{$json}}\nReturn the result in EXACTLY this format:\n\n[LINKEDIN]\n<text>\n\n[INTERNAL_BRIEF]\n<text>\n\n[PARTNER_EMAIL]\nSubject: <subject>\nBody:\n<text>"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.1,
+      "position": [
+        896,
+        0
+      ],
+      "id": "d12dd459-4a04-4176-8a13-ded9bdbe151a",
+      "name": "OutputS",
+      "credentials": "<REDACTED_CREDENTIALS>"
+    },
+    {
+      "parameters": {
+        "resource": "draft",
+        "subject": "={{$json.email_subject}}",
+        "bodyContent": "={{$json.email_body}}\n",
+        "additionalFields": {
+          "toRecipients": "<REDACTED_EMAIL>"
+        }
+      },
+      "type": "n8n-nodes-base.microsoftOutlook",
+      "typeVersion": 2,
+      "position": [
+        1248,
+        304
+      ],
+      "id": "6a384c0f-86b3-43cf-966a-6dc0eb2b8400",
+      "name": "Create a draft email to stakeholder",
+      "webhookId": "<REDACTED_WEBHOOK_ID>",
+      "credentials": "<REDACTED_CREDENTIALS>"
+    },
+    {
+      "parameters": {
+        "person": "uZyqBqpetF",
+        "text": "={{$json.linkedin_text}}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.linkedIn",
+      "typeVersion": 1,
+      "position": [
+        1248,
+        160
+      ],
+      "id": "426cca4b-b4e6-459f-93c1-b88d41962f83",
+      "name": "Create a post",
+      "credentials": "<REDACTED_CREDENTIALS>"
+    },
+    {
+      "parameters": {
+        "folderId": "<REDACTED_FOLDER_ID>",
+        "title": "Updating meeting brief notes_Companyname_Month"
+      },
+      "type": "n8n-nodes-base.googleDocs",
+      "typeVersion": 2,
+      "position": [
+        1248,
+        480
+      ],
+      "id": "7899f188-70bd-4bfd-b25f-0f92b8261cb5",
+      "name": "Create a document in google docs",
+      "credentials": "<REDACTED_CREDENTIALS>"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentURL": "<REDACTED_URL>",
+        "actionsUi": {
+          "actionFields": [
+            {
+              "action": "insert",
+              "text": "={{ $('Split outputs (code)').item.json.internal_brief }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.googleDocs",
+      "typeVersion": 2,
+      "position": [
+        1456,
+        480
+      ],
+      "id": "2e298a5c-92c4-480c-aae3-687ae563eb8a",
+      "name": "Update the document (internal brief)",
+      "credentials": "<REDACTED_CREDENTIALS>"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get the model output text from the previous node.\n// If you turned on \"Simplify Output\" in OutputS, it is usually at $input.first().json.output\n// Otherwise it may be at $input.first().json.content[0].text\nconst j = $input.first().json;\n\n// 兼容 n8n OpenAI 节点多种输出结构\nconst raw =\n  (typeof j.output === \"string\" && j.output) ||\n  (typeof j.text === \"string\" && j.text) ||\n  (typeof j?.content?.[0]?.text === \"string\" && j.content[0].text) ||\n  (typeof j?.output?.[0]?.content?.[0]?.text === \"string\" && j.output[0].content[0].text) ||\n  (typeof j?.output?.output?.[0]?.content?.content?.[0]?.text === \"string\" && j.output.output[0].content.content[0].text) ||\n  \"\";\n\n// Helper: extract text between markers\nfunction between(s, start, end) {\n  const a = s.indexOf(start);\n  if (a === -1) return \"\";\n  const b = end ? s.indexOf(end, a + start.length) : -1;\n  const slice = b === -1 ? s.slice(a + start.length) : s.slice(a + start.length, b);\n  return slice.trim();\n}\n\nconst linkedin = between(raw, \"[LINKEDIN]\", \"[INTERNAL_BRIEF]\");\nconst internal = between(raw, \"[INTERNAL_BRIEF]\", \"[PARTNER_EMAIL]\");\nconst partnerBlock = between(raw, \"[PARTNER_EMAIL]\", null);\n\n// Parse subject/body inside partner block\nlet subject = \"\";\nlet body = partnerBlock;\n\nconst m = partnerBlock.match(/Subject:\\s*(.*)/i);\nif (m) subject = m[1].trim();\n\nconst bodyStart = partnerBlock.search(/Body:\\s*/i);\nif (bodyStart !== -1) body = partnerBlock.slice(bodyStart).replace(/Body:\\s*/i, \"\").trim();\n\nreturn [\n  {\n    json: {\n      linkedin_text: linkedin,\n      internal_brief: internal,\n      email_subject: subject || \"Partner update & next steps\",\n      email_body: body,\n      raw_output: raw\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        976,
+        288
+      ],
+      "id": "8b4bc422-5169-4294-9bb0-18dbc32fc39b",
+      "name": "Split outputs (code)"
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\n\nfunction findText(obj) {\n  if (!obj) return null;\n  if (Array.isArray(obj)) {\n    for (const v of obj) {\n      const r = findText(v);\n      if (r) return r;\n    }\n    return null;\n  }\n  if (typeof obj === \"object\") {\n    if (typeof obj.text === \"string\") return obj.text;\n    for (const k of Object.keys(obj)) {\n      const r = findText(obj[k]);\n      if (r) return r;\n    }\n  }\n  return null;\n}\n\nconst text = findText(data);\nif (typeof text !== \"string\") throw new Error(\"Cannot find JSON text in input.\");\n\nconst obj = JSON.parse(text);\n\n// --- 下面照旧：计算 variance + flags ---\nconst kpis = Array.isArray(obj.kpis) ? obj.kpis : [];\nconst other = Array.isArray(obj.other_metrics) ? obj.other_metrics : [];\nconst targets = Array.isArray(obj.targets_thresholds) ? obj.targets_thresholds : [];\n\nconst maxDiscount =\n  targets.find(t => (t.name || \"\").toLowerCase().includes(\"maximum discount\"))?.value ?? null;\n\nconst repairCap =\n  other.find(o => (o.name || \"\").toLowerCase().includes(\"repair capacity\"))?.value ?? null;\n\nconst enriched = kpis.map(k => {\n  const actual = k.actual ?? null;\n  const plan = k.plan ?? null;\n  let variance = null, variance_pct = null;\n  if (actual !== null && plan !== null) {\n    variance = actual - plan;\n    if (plan !== 0) variance_pct = variance / plan;\n  }\n  return { ...k, variance, variance_pct };\n});\n\nconst flags = [];\nconst discount = enriched.find(k => (k.name || \"\").toLowerCase().includes(\"discount\"));\nif (maxDiscount !== null && discount?.actual !== null && discount.actual > maxDiscount) {\n  flags.push(`Discount rate is above the cap: ${discount.actual}% > ${maxDiscount}%`);\n}\nconst repairReq = enriched.find(k => (k.name || \"\").toLowerCase().includes(\"repair requests\"));\nif (repairCap !== null && repairReq?.actual !== null && repairReq.actual > repairCap) {\n  flags.push(`Repair requests exceed capacity: ${repairReq.actual} > ${repairCap} per month`);\n}\n\nreturn [{ json: { ...obj, kpis_enriched: enriched, checks: { max_discount_rate_pct: maxDiscount, repair_capacity_per_month: repairCap, flags } } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        0
+      ],
+      "id": "38001c0a-47db-4c37-870e-5ce26ebabf50",
+      "name": "Build KPI Dataset (JSON)"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4.1-nano",
+          "mode": "list",
+          "cachedResultName": "GPT-4.1-NANO"
+        },
+        "responses": {
+          "values": [
+            {
+              "content": "=You are a data extraction assistant.\nExtract ONLY numeric KPI information from the input meeting notes.\nOutput STRICT JSON only (no prose, no markdown, no code fences).\nDo not invent any numbers. If missing, use null.\n\nSchema:\n{\n  \"period\": \"2026-01\",\n  \"currency\": \"SEK\",\n  \"kpis\": [\n    {\"name\":\"\",\"actual\":null,\"plan\":null,\"prior\":null,\"unit\":\"\",\"breakdown\":{\"online_actual\":null,\"online_plan\":null,\"in_store_actual\":null,\"in_store_plan\":null}}\n  ],\n  \"other_metrics\": [\n    {\"name\":\"\",\"value\":null,\"plan\":null,\"prior\":null,\"unit\":\"\"}\n  ],\n  \"targets_thresholds\": [\n    {\"name\":\"\",\"value\":null,\"unit\":\"\"}\n  ]\n}\n\nInput:\n{{$node[\"Edit Fields\"].json.meeting_notes}}"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.1,
+      "position": [
+        416,
+        0
+      ],
+      "id": "d1f1b420-a97f-46e3-8432-daf73c3eb280",
+      "name": "Extract Data (JSON)",
+      "credentials": "<REDACTED_CREDENTIALS>"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "aa95f7cf-4150-49a3-b4d6-bbb3c490d5d4",
+      "name": "Let's Go"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Extract Data (JSON)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OutputS": {
+      "main": [
+        [
+          {
+            "node": "Split outputs (code)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create a post": {
+      "main": [
+        []
+      ]
+    },
+    "Create a document in google docs": {
+      "main": [
+        [
+          {
+            "node": "Update the document (internal brief)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split outputs (code)": {
+      "main": [
+        [
+          {
+            "node": "Create a draft email to stakeholder",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Create a document in google docs",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Create a post",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build KPI Dataset (JSON)": {
+      "main": [
+        [
+          {
+            "node": "OutputS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Data (JSON)": {
+      "main": [
+        [
+          {
+            "node": "Build KPI Dataset (JSON)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Let's Go": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "<REDACTED_VERSIONID>",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "<REDACTED_INSTANCE_ID>"
+  },
+  "id": "<REDACTED_ID>",
+  "tags": []
+}
