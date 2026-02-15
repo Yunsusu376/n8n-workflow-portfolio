@@ -1,73 +1,70 @@
-# n8n Workflow (Sanitized) — KPI Extraction & Comms Outputs
+# n8n-workflow-portfolio
 
-This repository contains a **sanitized** export of an n8n workflow for portfolio purposes.  
-It demonstrates an automation pipeline that extracts structured KPIs from meeting notes and generates communication-ready outputs.
+## Overview
+This repository contains a **sanitized n8n workflow** for portfolio purposes.
+The workflow turns structured meeting notes into three deliverables and routes them to different channels:
+1) an external LinkedIn post
+2) an internal brief
+3) a partner email draft
 
-## What this workflow does (high level)
+Goal: reduce repetitive manual writing and improve delivery speed and consistency, while keeping outputs audience-appropriate.
 
-1. **Manual Trigger** starts the workflow.
-2. **Set node** provides meeting notes (redacted in this public version).
-3. **LLM step (Extract Data / JSON)** extracts numeric KPIs into a strict JSON structure.
-4. **Code step** enriches the extracted KPIs (e.g., simple checks/flags and derived fields).
-5. **LLM step (Outputs)** generates three written deliverables:
-   - External LinkedIn post (no raw KPI numbers)
-   - Internal brief (bullets + risks/open questions + next actions)
-   - Partner email (subject + body + highlights + next steps)
-6. **Code step** splits the LLM output into fields for downstream use.
-7. Optional downstream actions (depending on your own n8n setup):
-   - Create a draft email
-   - Create a LinkedIn post draft
-   - Create / update a Google Doc
+## Repository contents
+- `n8n_workflow_sanitized.json` — workflow export (sanitized for GitHub)
+- `README.md`
 
-## Model configuration (important)
+## What the workflow does (Inputs → Outputs)
 
-This workflow uses OpenAI chat models through the n8n node `@n8n/n8n-nodes-langchain.openAi`.
+### Input
+- **Meeting notes** are provided as a single text field (`meeting_notes`) to ensure repeatable runs without relying on an external data source.
 
-- Node: **Extract Data (JSON)** → Model: **gpt-4.1-nano**
-- Node: **OutputS** → Model: **gpt-4.1-nano**
+### Outputs
+- **LinkedIn post** (public-facing, no sensitive details / no raw KPI numbers)
+- **Internal brief** (bullets: updates, risks, next actions)
+- **Partner email draft** (subject + body, with highlights and a short next-steps paragraph)
 
-Notes:
-- You can swap the model in each OpenAI node if needed (e.g., for higher accuracy or longer outputs).
-- Keep the extraction step on a model that follows structured output reliably.
+## Workflow logic (high-level)
+The workflow is organized as a clear pipeline:
 
-## Inputs and outputs
+1. **Manual Trigger** to start the workflow.
+2. **Edit/Set Fields** to store `meeting_notes` as a single standardized text input.
+3. **Extract Data (JSON)**: use an OpenAI model via n8n to extract **ONLY numeric KPI information** from notes into **strict JSON** (no prose, no markdown).
+4. **Build KPI Dataset**: compute simple checks / derived fields (e.g., variance vs plan if available).
+5. **Generate Outputs**: use an OpenAI model to generate three channel-specific texts with strict formatting markers:
+   - `[LINKEDIN]`
+   - `[INTERNAL_BRIEF]`
+   - `[PARTNER_EMAIL]`
+6. **Split outputs (code)**: parse the model response into separate fields (linkedin text, internal brief, email subject/body).
+7. **Delivery nodes** (optional, depending on your setup):
+   - Post to **LinkedIn**
+   - Create an **email draft** (Outlook)
+   - Create + update an **internal brief** doc (Google Docs)
 
-### Input (redacted in public version)
-- `meeting_notes`: internal notes text used for KPI extraction  
-  In this repo it is replaced with: `<REDACTED_MEETING_NOTES>`
+## Model & prompting (important)
+- The workflow uses **n8n’s OpenAI node** (LangChain OpenAI integration).
+- **Model name is configurable in the n8n node settings** (this repo does not hardcode a specific model).
+- Prompts are designed to prevent hallucinations and sensitive disclosure:
+  - “Do not invent facts or numbers.”
+  - “All numbers must come from the provided JSON. If missing, write ‘Not provided’.”
+  - LinkedIn output explicitly disallows raw KPI numbers and confidential details.
 
-### Output (produced by the workflow)
-- `kpi_json`: a structured JSON object extracted from notes
-- `linkedin_post`: external-facing summary (no confidential numbers)
-- `internal_brief`: internal update bullets + risks + next actions
-- `partner_email`: subject + email body (with highlights + next steps)
-
-## What is redacted and why
-
-To keep this safe for a public GitHub repo, the exported JSON has been sanitized:
-
-- Meeting notes text: replaced with `<REDACTED_MEETING_NOTES>`
-- Email addresses: replaced with `<REDACTED_EMAIL>`
-- Document URLs / folder IDs: replaced with placeholders
-- n8n credential references: replaced with `<REDACTED_CREDENTIALS>`
-- Webhook IDs / workflow IDs / instance IDs: replaced with placeholders
-
-## How to import into n8n
-
-1. In n8n, go to **Workflows → Import from File**
+## How to import and run in n8n
+1. Open n8n → **Workflows** → **Import from File**
 2. Select `n8n_workflow_sanitized.json`
-3. Reconnect credentials in your own n8n instance and replace placeholders with your own values.
-4. Run the workflow from the top (Manual Trigger).
+3. Configure credentials in n8n (OpenAI / LinkedIn / Outlook / Google Docs as needed)
+4. Replace any placeholder fields (e.g., `<REDACTED_...>`) with your own values
+5. Run the workflow from top to bottom (Manual Trigger)
 
-## How to make it runnable in your environment
+## Data sharing & privacy
+- This repository includes **workflow logic only** (no datasets / no meeting notes).
+- The workflow JSON is sanitized: emails, URLs, folder IDs, credentials, and internal notes are replaced with placeholders.
+- Before posting publicly (e.g., LinkedIn), a **human review step** is recommended to ensure:
+  - no sensitive internal info is disclosed
+  - wording does not over-claim
+  - metric definitions/method notes are appropriate for external audiences
 
-You will need to configure:
-- OpenAI credentials in n8n (for the LLM nodes)
-- Any optional integrations you want to activate (email / Google Docs / LinkedIn)
-- Replace placeholder fields:
-  - `<REDACTED_EMAIL>` / `<REDACTED_URL>` / `<REDACTED_FOLDER_ID>` / `<REDACTED_MEETING_NOTES>`
-
-## Notes
-
-This export is intended as a **portfolio artifact** (structure + logic).  
-It will not run end-to-end without configuring credentials and replacing placeholders.
+## Limitations / future improvements
+- Add a formal “human approval” gate before any external posting.
+- Add a reusable metric glossary / method notes component.
+- Add automated checks for missing fields and inconsistent definitions across sources.
+- Add logging/monitoring and versioning for prompt changes.
